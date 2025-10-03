@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор паролей</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 ГЕНЕРАТОР ПАРОЛЕЙ</h1>
+            <p>Создайте безопасный пароль за секунды</p>
+        </div>
+
+        <div class="controls">
+            <div class="form-group">
+                <label for="level">Уровень сложности:</label>
+                <select id="level">
+                    <option value="Light">Light (лёгкий)</option>
+                    <option value="Medium" selected>Medium (средний)</option>
+                    <option value="Hard">Hard (сложный)</option>
+                </select>
+                <div class="level-info" id="levelInfo">
+                    Буквы, 8-12 символов
+                </div>
+            </div>
+
+            <button class="btn" onclick="generatePassword()">
+                СГЕНЕРИРОВАТЬ ПАРОЛЬ
+            </button>
+        </div>
+
+        <div class="result" id="result">
+            <h3>Ваш сгенерированный пароль:</h3>
+            <div class="password-display" id="password"></div>
+            <button class="copy-btn" onclick="copyPassword()">
+                📋 КОПИРОВАТЬ В БУФЕР ОБМЕНА
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Обновление информации об уровне сложности
+        document.getElementById('level').addEventListener('change', function() {
+            const levelInfo = {
+                'Light': 'Только буквы, 6-8 символов',
+                'Medium': 'Буквы + цифры, 8-12 символов',
+                'Hard': 'Буквы + цифры + спецсимволы, 12-16 символов'
+            };
+            document.getElementById('levelInfo').textContent = levelInfo[this.value];
+        });
+
+        // Инициализация информации при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('level').dispatchEvent(new Event('change'));
+        });
+
+        async function generatePassword() {
+            const level = document.getElementById('level').value;
+            const button = document.querySelector('.btn');
+
+            // Визуальная обратная связь
+            button.textContent = 'ГЕНЕРАЦИЯ...';
+            button.disabled = true;
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `level=${level}`
+                });
+
+                const data = await response.json();
+
+                if (data.password) {
+                    document.getElementById('password').textContent = data.password;
+                    const resultDiv = document.getElementById('result');
+                    resultDiv.style.display = 'block';
+                    resultDiv.classList.add('fade-in');
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            } catch (error) {
+                alert('Ошибка соединения: ' + error.message);
+            } finally {
+                button.textContent = 'СГЕНЕРИРОВАТЬ ПАРОЛЬ';
+                button.disabled = false;
+            }
+        }
+
+        function copyPassword() {
+            const password = document.getElementById('password').textContent;
+            navigator.clipboard.writeText(password).then(() => {
+                const copyBtn = document.querySelector('.copy-btn');
+                const originalText = copyBtn.textContent;
+                copyBtn.textContent = '✓ СКОПИРОВАНО!';
+                copyBtn.style.backgroundColor = '#333';
+
+                setTimeout(() => {
+                    copyBtn.textContent = originalText;
+                    copyBtn.style.backgroundColor = '';
+                }, 2000);
+            }).catch(err => {
+                alert('Не удалось скопировать пароль: ' + err);
+            });
+        }
+    </script>
+</body>
+</html>
