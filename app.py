@@ -68,7 +68,7 @@ class PasswordManager:
         password = ''.join(random.choice(characters) for _ in range(length))
         return password
 
-    def add_password(self, username, service, complexity="Medium", custom_password=None):
+    def add_password(self, username, service, login, complexity="Medium", custom_password=None):
         if custom_password:
             password = custom_password
         else:
@@ -79,11 +79,12 @@ class PasswordManager:
 
         self.passwords[username].append({
             "service": service,
+            "login": login,
             "password": password
         })
         self.save_passwords()
 
-        return True, f"Пароль для {service} сохранен: {password}"
+        return True, f"Данные для {service} сохранены!"
 
     def get_passwords(self, username):
         user_passwords = self.passwords.get(username, [])
@@ -145,15 +146,16 @@ def generate_password():
         return redirect(url_for('login'))
 
     service = request.form['service']
+    login = request.form['login']
     complexity = request.form.get('complexity', 'Medium')
     custom_password = request.form.get('custom_password', '')
 
     username = session['username']
 
     if custom_password:
-        success, message = manager.add_password(username, service, complexity, custom_password)
+        success, message = manager.add_password(username, service, login, complexity, custom_password)
     else:
-        success, message = manager.add_password(username, service, complexity)
+        success, message = manager.add_password(username, service, login, complexity)
 
     if success:
         flash(message, 'success')
@@ -171,4 +173,4 @@ def logout():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host ='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)
