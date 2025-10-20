@@ -1,137 +1,173 @@
-import string
 import random
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-import os
+import string
 import json
-from datetime import datetime
+import os
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 
 app = Flask(__name__)
-app.secret_key = 'hello'  # Важно: замените на случайный ключ в продакшене
+app.secret_key = 'hello'
+
+USERS_FILE = 'users.json'
+PASSWORDS_FILE = 'passwords.json'
 
 
+class PasswordManager:
+    def __init__(self):
+        self.users = self.load_users()
+        self.passwords = self.load_passwords()
+
+    def load_users(self):
+        if os.path.exists(USERS_FILE):
+            with open(USERS_FILE, 'r') as f:
+                return json.load(f)
+        return {}
+
+    def load_passwords(self):
+        if os.path.exists(PASSWORDS_FILE):
+            with open(PASSWORDS_FILE, 'r') as f:
+                return json.load(f)
+        return {}
+
+    def save_users(self):
+        with open(USERS_FILE, 'w') as f:
+            json.dump(self.users, f)
+
+    def save_passwords(self):
+        with open(PASSWORDS_FILE, 'w') as f:
+            json.dump(self.passwords, f)
+
+    def register(self, username, password):
+        if username in self.users:
+            return False, "Пользователь с таким именем уже существует"
+
+        self.users[username] = password
+        self.passwords[username] = []
+        self.save_users()
+        self.save_passwords()
+        return True, "Регистрация успешна"
+
+    def login(self, username, password):
+        if username in self.users and self.users[username] == password:
+            return True, "Успешный вход"
+        else:
+            return False, "Неверное имя пользователя или пароль"
+
+    def generate_password(self, level):
+        if level == "Light":
+            length = random.randint(6, 8)
+            characters = string.ascii_letters
+        elif level == "Medium":
+            length = random.randint(8, 12)
+            characters = string.ascii_letters + string.digits
+        elif level == "Hard":
+            length = random.randint(12, 16)
+            characters = string.ascii_letters + string.digits + string.punctuation
+        else:
+            raise ValueError("Неизвестный уровень сложности")
+
+        password = ''.join(random.choice(characters) for _ in range(length))
+        return password
+
+    def add_password(self, username, service, complexity="Medium", custom_password=None):
+        if custom_password:
+            password = custom_password
+        else:
+            password = self.generate_password(complexity)
+
+        if username not in self.passwords:
+            self.passwords[username] = []
+
+        self.passwords[username].append({
+            "service": service,
+            "password": password
+        })
+        self.save_passwords()
+
+        return True, f"Пароль для {service} сохранен: {password}"
+
+    def get_passwords(self, username):
+        user_passwords = self.passwords.get(username, [])
+        return user_passwords
 
 
-def load_users():
-    return  [
-            {'username': 'admin', 'password': 'admin', 'role': 'admin'},
-            {'username': 'user', 'password': 'user', 'role': 'user'}
-            ]
+manager = PasswordManager()
 
 
+@app.route('/')
+def index():
+    if 'username' not in session:
+        return redirect(url_for('login'))
 
-def generate_password(level):
+    username = session['username']
+    passwords = manager.get_passwords(username)
 
-    if level == "Light":
-        length = random.randint(6, 8)
-        characters = string.ascii_letters
-    elif level == "Medium":
-        length = random.randint(8, 12)
-        characters = string.ascii_letters + string.digits
-    elif level == "Hard":
-        length = random.randint(12, 16)
-        characters = string.ascii_letters + string.digits + string.punctuation
-    else:
-        raise ValueError("Неизвестный уровень сложности")
-
-    password = ''.join(random.choice(characters) for _ in range(length))
-    return password
-
-def load_users():
-    return [
-        {'username': 'admin', 'password': 'admin123', 'role': 'admin'},
-        {'username': 'user1', 'password': 'user123', 'role': 'user'},
-        {'username': 'user2', 'password': 'user123', 'role': 'user'}
-    ]
-
-user_profiles = {
-    'admin': {'password': 'admin123', 'name': 'Администратор', 'role': 'admin'},
-    'user1': {'password': 'user123', 'name': 'Иван Иванов', 'role': 'user'},
-    'user2': {'password': 'user123', 'name': 'Мария Петрова', 'role': 'user'}
-}
+    return render_template('index.html',
+                           username=username,
+                           passwords=passwords)
 
 
-def login_required(f):
-    def decorated_function(*args, **kwargs):
-        if 'username' not in session:
-            flash('Пожалуйста, войдите в систему', 'error')
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-
-    decorated_function.__name__ = f.__name__
-    return decorated_function
-
-
-# Маршруты аутентификации
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'username' in session:
-        return redirect(url_for('index'))
-
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
 
-        users = load_users()
-        user_found = False
-        for user in users:
-            if user['username'] == username and user['password'] == password:
-                session['username'] = user['username']
-                session['role'] = user.get('role', 'user')
-                print(session)
-                flash(f'Добро пожаловать, {username}!', 'success')
-                user_found = True
-                return redirect(url_for('index'))
-
-        if not user_found:
-            flash('Неверное имя пользователя или пароль', 'error')
+        success, message = manager.login(username, password)
+        if success:
+            session['username'] = username
+            flash(message, 'success')
+            return redirect(url_for('index'))
+        else:
+            flash(message, 'error')
 
     return render_template('login.html')
 
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        success, message = manager.register(username, password)
+        if success:
+            flash(message, 'success')
+            return redirect(url_for('login'))
+        else:
+            flash(message, 'error')
+
+    return render_template('register.html')
+
+
+@app.route('/generate_password', methods=['POST'])
+def generate_password():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+
+    service = request.form['service']
+    complexity = request.form.get('complexity', 'Medium')
+    custom_password = request.form.get('custom_password', '')
+
+    username = session['username']
+
+    if custom_password:
+        success, message = manager.add_password(username, service, complexity, custom_password)
+    else:
+        success, message = manager.add_password(username, service, complexity)
+
+    if success:
+        flash(message, 'success')
+    else:
+        flash(message, 'error')
+
+    return redirect(url_for('index'))
+
+
 @app.route('/logout')
 def logout():
-    session.clear()
+    session.pop('username', None)
     flash('Вы вышли из системы', 'info')
     return redirect(url_for('login'))
-
-
-# Защищенные маршруты
-@app.route('/')
-@login_required
-def index():
-    return render_template('index.html', username=session.get('username'))
-
-
-
-# Дополнительные защищенные маршруты (пример)
-@app.route('/profile')
-@login_required
-def profile():
-    return render_template('profile.html',
-                           username=session.get('username'),
-                           role=session.get('role'))
-
-
-@app.route('/admin')
-@login_required
-def admin():
-    if session.get('role') != 'admin':
-        flash('У вас нет прав для доступа к этой странице', 'error')
-        return redirect(url_for('index'))
-    return render_template('admin.html', username=session.get('username'))
-
-
-@app.route('/generate', methods=['POST'])
-def generate():
-    try:
-        level = request.form.get('level', 'Medium')
-        password = generate_password(level)
-        return jsonify({'password': password, 'error': None})
-    except Exception as e:
-        return jsonify({'password': None, 'error': str(e)})
-
-
-
 
 
 if __name__ == '__main__':
