@@ -3,110 +3,192 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Генератор паролей</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Менеджер паролей</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            margin: 0;
+        }
+        .user-info {
+            color: #666;
+        }
+        .logout-btn {
+            background: #dc3545;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .logout-btn:hover {
+            background: #c82333;
+        }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .form-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: bold;
+        }
+        input[type="text"],
+        input[type="password"],
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #218838;
+        }
+        .passwords-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .password-item {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .password-service {
+            font-weight: bold;
+            color: #333;
+        }
+        .password-value {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin-top: 5px;
+        }
+        .no-passwords {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🔐 ГЕНЕРАТОР ПАРОЛЕЙ</h1>
-            <p>Создайте безопасный пароль за секунды</p>
-        </div>
-
-        <div class="controls">
-            <div class="form-group">
-                <label for="level">Уровень сложности:</label>
-                <select id="level">
-                    <option value="Light">Light (лёгкий)</option>
-                    <option value="Medium" selected>Medium (средний)</option>
-                    <option value="Hard">Hard (сложный)</option>
-                </select>
-                <div class="level-info" id="levelInfo">
-                    Буквы, 8-12 символов
-                </div>
+            <h1>🔐 Менеджер паролей</h1>
+            <div class="user-info">
+                Добро пожаловать, <strong>{{ username }}</strong> |
+                <a href="{{ url_for('logout') }}" class="logout-btn">Выйти</a>
             </div>
-
-            <button class="btn" onclick="generatePassword()">
-                СГЕНЕРИРОВАТЬ ПАРОЛЬ
-            </button>
         </div>
 
-        <div class="result" id="result">
-            <h3>Ваш сгенерированный пароль:</h3>
-            <div class="password-display" id="password"></div>
-            <button class="copy-btn" onclick="copyPassword()">
-                📋 КОПИРОВАТЬ В БУФЕР ОБМЕНА
-            </button>
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <div class="form-section">
+            <h2>Добавить новый пароль</h2>
+            <form method="POST" action="{{ url_for('generate_password') }}">
+                <div class="form-group">
+                    <label for="service">Название сервиса:</label>
+                    <input type="text" id="service" name="service" required placeholder="Например: Gmail, Facebook">
+                </div>
+
+                <div class="form-group">
+                    <label for="complexity">Уровень сложности:</label>
+                    <select id="complexity" name="complexity">
+                        <option value="Light">Light (6-8 символов, только буквы)</option>
+                        <option value="Medium" selected>Medium (8-12 символов, буквы + цифры)</option>
+                        <option value="Hard">Hard (12-16 символов, все символы)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="custom_password">Или введите свой пароль (оставьте пустым для генерации):</label>
+                    <input type="password" id="custom_password" name="custom_password" placeholder="Необязательно">
+                </div>
+
+                <button type="submit">Сгенерировать и сохранить</button>
+            </form>
+        </div>
+
+        <div class="passwords-section">
+            <h2>Мои сохраненные пароли</h2>
+            {% if passwords %}
+                {% for item in passwords %}
+                    <div class="password-item">
+                        <div class="password-service">{{ item.service }}</div>
+                        <div class="password-value">{{ item.password }}</div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-passwords">
+                    У вас пока нет сохраненных паролей. Добавьте первый пароль выше!
+                </div>
+            {% endif %}
         </div>
     </div>
-
-    <script>
-        // Обновление информации об уровне сложности
-        document.getElementById('level').addEventListener('change', function() {
-            const levelInfo = {
-                'Light': 'Только буквы, 6-8 символов',
-                'Medium': 'Буквы + цифры, 8-12 символов',
-                'Hard': 'Буквы + цифры + спецсимволы, 12-16 символов'
-            };
-            document.getElementById('levelInfo').textContent = levelInfo[this.value];
-        });
-
-        // Инициализация информации при загрузке
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('level').dispatchEvent(new Event('change'));
-        });
-
-        async function generatePassword() {
-            const level = document.getElementById('level').value;
-            const button = document.querySelector('.btn');
-
-            // Визуальная обратная связь
-            button.textContent = 'ГЕНЕРАЦИЯ...';
-            button.disabled = true;
-
-            try {
-                const response = await fetch('/generate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `level=${level}`
-                });
-
-                const data = await response.json();
-
-                if (data.password) {
-                    document.getElementById('password').textContent = data.password;
-                    const resultDiv = document.getElementById('result');
-                    resultDiv.style.display = 'block';
-                    resultDiv.classList.add('fade-in');
-                } else {
-                    alert('Ошибка: ' + data.error);
-                }
-            } catch (error) {
-                alert('Ошибка соединения: ' + error.message);
-            } finally {
-                button.textContent = 'СГЕНЕРИРОВАТЬ ПАРОЛЬ';
-                button.disabled = false;
-            }
-        }
-
-        function copyPassword() {
-            const password = document.getElementById('password').textContent;
-            navigator.clipboard.writeText(password).then(() => {
-                const copyBtn = document.querySelector('.copy-btn');
-                const originalText = copyBtn.textContent;
-                copyBtn.textContent = '✓ СКОПИРОВАНО!';
-                copyBtn.style.backgroundColor = '#333';
-
-                setTimeout(() => {
-                    copyBtn.textContent = originalText;
-                    copyBtn.style.backgroundColor = '';
-                }, 2000);
-            }).catch(err => {
-                alert('Не удалось скопировать пароль: ' + err);
-            });
-        }
-    </script>
 </body>
 </html>
